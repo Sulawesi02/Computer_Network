@@ -1,10 +1,10 @@
 ﻿  server.cpp
-D:\Mycode\VS_Code\Computer_Network\Lab1\Server\server.cpp(40,62): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
-D:\Mycode\VS_Code\Computer_Network\Lab1\Server\server.cpp(51,65): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
-D:\Mycode\VS_Code\Computer_Network\Lab1\Server\server.cpp(142,63): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
+D:\Mycode\VS_Code\Computer_Network\Lab1\Server\server.cpp(39,62): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
+D:\Mycode\VS_Code\Computer_Network\Lab1\Server\server.cpp(50,65): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
+D:\Mycode\VS_Code\Computer_Network\Lab1\Server\server.cpp(141,63): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
   正在生成代码
-  2 of 287 functions ( 0.7%) were compiled, the rest were copied from previous compilation.
+  1 of 287 functions ( 0.3%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
-    5 functions had inline decision re-evaluated but remain unchanged
+    0 functions had inline decision re-evaluated but remain unchanged
   已完成代码的生成
   Server.vcxproj -> D:\Mycode\VS_Code\Computer_Network\Lab1\x64\Release\Server.exe

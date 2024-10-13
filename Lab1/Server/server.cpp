@@ -9,7 +9,7 @@
 
 #define PORT 3410 // 监听端口
 #define BUF_SIZE 1024 // 缓冲区大小
-#define MAX_CLIENTS 2 // 最大客户端数量
+#define MAX_CLIENTS 5 // 最大客户端数量
 
 using namespace std;
 
@@ -17,10 +17,9 @@ map<int, SOCKET> accepts; // 用户ID作为键，连接套接字作为键值
 int user_id; // 用户ID
 bool isFull = false; // 是否已达连接上限
 
-// 处理客户端通信
+// 处理客户端通信（接收客户端消息并处理）
 void handleAccept(int clientId, SOCKET acceptSocket) {
 	char recvBuff[BUF_SIZE];// 接收缓冲区
-
 
 	while (true) {
 		ZeroMemory(recvBuff, BUF_SIZE);// 清空缓冲区，避免读取到残留数据
@@ -31,7 +30,7 @@ void handleAccept(int clientId, SOCKET acceptSocket) {
 			// 客户端请求退出
 			// 三种方式：直接关闭窗口，或者发送"exit" "quit"
 			string exitMessage = "用户[" + to_string(clientId) + "]退出聊天！";
-			cout << exitMessage << endl;
+			cout << exitMessage << endl;// 打印用户退出聊天信息
 			closesocket(acceptSocket);// 关闭该连接套接字
 			accepts.erase(clientId);// 移除用户ID-连接套接字键值对
 
@@ -43,7 +42,7 @@ void handleAccept(int clientId, SOCKET acceptSocket) {
 			return;
 		}
 		else {
-			cout << "用户[" << clientId << "]: " << message << endl;
+			cout << "用户[" << clientId << "]: " << message << endl;// 打印用户聊天信息
 			// 广播消息给所有客户端
 			string idAddMessage = "用户[" + to_string(clientId) + "]: " + message;
 			for (const auto& pair : accepts) {

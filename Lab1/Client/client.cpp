@@ -1,6 +1,7 @@
 #include <iostream>
 #include <WinSock2.h>
 #include <ws2tcpip.h>
+#include<string>
 #include <thread>
 #include <windows.h> // 用于控制台光标操作
 
@@ -11,7 +12,7 @@
 
 using namespace std;
 
-int context_start_line = 6;// 聊天内容从第七行开始
+string userInput; // 保存当前用户输入的内容
 
 // 处理服务器通信
 void handleServer(SOCKET serverSocket, int clientId) {
@@ -25,20 +26,36 @@ void handleServer(SOCKET serverSocket, int clientId) {
             break;
         }
 
-        // 清除当前行
-        COORD coord;
-        coord.X = 0; // 光标位置的X坐标
-        coord.Y = context_start_line; // 光标位置的Y坐标
-        SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+        // 保存当前光标位置
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+        COORD cursorPos = csbi.dwCursorPosition;  // 获取当前光标位置
 
-        // 输出接收到的消息
+        // 读取提示词到光标之间的内容并存储到 userInput 中
+        string prompt = "用户[" + to_string(clientId) + "]: ";// 提示词
+        COORD promptStartPos = cursorPos;// 用户输入的起始位置(提示词末尾)
+        promptStartPos.X = prompt.length(); 
+        int remainingChars = cursorPos.X - promptStartPos.X;// 用户输入的长度（从提示词末尾到光标之间的字符数）
+        char* inputBuffer = new char[remainingChars + 1]; // 存储用户输入的内容
+        DWORD charsRead;// 用于存储实际读取的字符数
+        ReadConsoleOutputCharacterA(GetStdHandle(STD_OUTPUT_HANDLE), inputBuffer, remainingChars, promptStartPos, &charsRead);// 读取控制台上的字符并存储在 inputBuffer 中
+        inputBuffer[remainingChars] = '\0';  // 确保以 '\0' 终止字符串
+        userInput = inputBuffer; // 将当前光标后的内容存入 userInput
+        delete[] inputBuffer; // 释放内存
+
+        // 清除当前行
+        COORD startPos = cursorPos;
+        startPos.X = 0;
+        DWORD charsWritten;
+        FillConsoleOutputCharacter(GetStdHandle(STD_OUTPUT_HANDLE), ' ', cursorPos.X, startPos, &charsWritten);
+        SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), startPos); // 恢复光标位置
+
+        // 打印接收到的消息
         string message = recvBuff;
         cout << message << endl;
 
-        context_start_line++;
-
-        // 重新绘制用户提示
-        cout << "用户[" << clientId << "]: ";
+        // 重新绘制用户输入
+        cout << "用户[" << clientId << "]: " << userInput;
         cout.flush();
     }
 }
@@ -94,7 +111,6 @@ int main() {
         cout << "用户[" << clientId << "]: ";
         cout.flush(); // 确保输出立即显示
         cin.getline(sendBuff, BUF_SIZE);
-        context_start_line++;
 
         if (send(socketClient, sendBuff, strlen(sendBuff), 0) == SOCKET_ERROR) {
             cout << "发送消息失败！" << endl;
