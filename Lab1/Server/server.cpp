@@ -3,55 +3,53 @@
 #include<ws2tcpip.h>
 #include<string>
 #include<thread>
-#include<vector>
 #include<map>
 
 #pragma comment(lib, "ws2_32.lib") // 导入Socket库
 
-#define PORT 3410  // 监听端口
-#define BUF_SIZE 1024  // 缓冲区大小
+#define PORT 3410 // 监听端口
+#define BUF_SIZE 1024 // 缓冲区大小
+#define MAX_CLIENTS 2 // 最大客户端数量
 
 using namespace std;
 
-map<int, SOCKET> clients; // 存储客户端套接字，使用用户ID作为键
-int user_id = 1;  // 用于生成用户ID
+map<int, SOCKET> accepts; // 用户ID作为键，连接套接字作为键值
+int user_id; // 用户ID
+bool isFull = false; // 是否已达连接上限
 
 // 处理客户端通信
-void handleClient(int clientId, SOCKET acceptSocket) {
+void handleAccept(int clientId, SOCKET acceptSocket) {
 	char recvBuff[BUF_SIZE];// 接收缓冲区
 
-	// 发送clientId给客户端
-	string clientIdMessage = "clientId:" + to_string(clientId);
-	send(acceptSocket, clientIdMessage.c_str(), clientIdMessage.length(), 0);
 
 	while (true) {
-		ZeroMemory(recvBuff, BUF_SIZE);//  清空缓冲区，避免读取到残留数据
-		int recvBytes = recv(acceptSocket, recvBuff, BUF_SIZE, 0);
-		
+		ZeroMemory(recvBuff, BUF_SIZE);// 清空缓冲区，避免读取到残留数据
+		int recvBytes = recv(acceptSocket, recvBuff, BUF_SIZE, 0);// 接收到的字节数
 		string message = recvBuff;
 
-		// 客户端请求退出
 		if (recvBytes <= 0 || message == "exit" || message == "quit") {
-			cout << "用户[" << clientId << "]退出聊天！" << endl;
-			closesocket(acceptSocket);
-			
-			// 从clients中移除客户端
-			clients.erase(clientId);
+			// 客户端请求退出
+			// 三种方式：直接关闭窗口，或者发送"exit" "quit"
+			string exitMessage = "用户[" + to_string(clientId) + "]退出聊天！";
+			cout << exitMessage << endl;
+			closesocket(acceptSocket);// 关闭该连接套接字
+			accepts.erase(clientId);// 移除用户ID-连接套接字键值对
 
 			// 广播退出消息给其他客户端
-			string exitMessage = "用户[" + to_string(clientId) + "]退出聊天！";
-			for (const auto& pair : clients) {
+			for (const auto& pair : accepts) {
 				send(pair.second, exitMessage.c_str(), exitMessage.length(), 0);
 			}
-			return; // 直接返回，不再关闭socket
+			isFull = false;
+			return;
 		}
-
-		cout << "用户[" << clientId << "]: " << message << endl;
-		// 广播消息给所有客户端
-		string fullMessage = "用户[" + to_string(clientId) + "]: " + message;
-		for (const auto& pair : clients) {
-			if (pair.first != clientId) {
-				send(pair.second, fullMessage.c_str(), fullMessage.length(), 0);
+		else {
+			cout << "用户[" << clientId << "]: " << message << endl;
+			// 广播消息给所有客户端
+			string idAddMessage = "用户[" + to_string(clientId) + "]: " + message;
+			for (const auto& pair : accepts) {
+				if (pair.first != clientId) {
+					send(pair.second, idAddMessage.c_str(), idAddMessage.length(), 0);
+				}
 			}
 		}
 	}
@@ -70,7 +68,7 @@ int main() {
 	cout << "初始化Socket库成功！" << endl;
 	cout << "===============================================" << endl;
 
-	// 创建服务器端socket
+	// 创建服务器socket
 	socketServer = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);// 采用IPv4地址族、流式套接字以及TCP协议 
 	if (socketServer == INVALID_SOCKET) {
 		cout << "创建服务器端socket失败！" << endl;
@@ -94,7 +92,7 @@ int main() {
 	cout << "绑定服务器地址和端口成功！" << endl;
 	cout << "===============================================" << endl;
 
-	// 使服务器的socket处于监听状态，准备接受客户端的连接请求
+	// 使服务器socket处于监听状态，准备接受客户端的连接请求
 	if (listen(socketServer, SOMAXCONN) == SOCKET_ERROR) {
 		cout << "监听客户端连接失败！" << endl;
 		closesocket(socketServer);
@@ -106,26 +104,47 @@ int main() {
 
 	// 循环接收客户端的连接请求
 	while (true) {
+		user_id = 1;// 从1开始寻找第一个可用的ID
+		while (accepts.find(user_id) != accepts.end()) {
+			++user_id;
+		}
+
+		if (user_id > MAX_CLIENTS) {
+			if (!isFull) { // 只有当 isFull 之前为 false 时才打印
+				isFull = true;
+				cout << "当前聊天室人数已到上限！" << endl;
+			}
+			continue;
+		}
+
 		SOCKADDR_IN clientAddr;
 		int addrLen = sizeof(clientAddr);
 
 		// 接受客户端的连接请求
-		SOCKET acceptSocket = accept(socketServer, (SOCKADDR*)&clientAddr, &addrLen);
-		
+		SOCKET acceptSocket = accept(socketServer, (SOCKADDR*)&clientAddr, &addrLen);//连接套接字，用于与客户端通信
+
 		if (acceptSocket == INVALID_SOCKET) {
 			cout << "客户端连接失败！" << endl;
 			continue;
 		}
 
-		// 分配用户ID，并记录客户端Socket
-		int clientId = user_id++;
-		clients[clientId] = acceptSocket;
+		string enterMessage = "用户[" + to_string(user_id) + "]加入聊天！";
+		cout << enterMessage << endl;
 
-		cout << "用户[" << clientId << "]加入聊天！" << endl;
+		// 分配用户ID，并记录连接套接字
+		accepts[user_id] = acceptSocket;
 
-		// 为每个客户端创建一个线程来处理消息
-		thread clientThread(handleClient, clientId, acceptSocket);
-		clientThread.detach();// 分离线程，让它自己运行
+		// 发送用户ID给客户端
+		send(acceptSocket, (char*)&user_id, sizeof(user_id), 0);
+
+		// 广播进入消息给所有客户端
+		for (const auto& pair : accepts) {
+			send(pair.second, enterMessage.c_str(), enterMessage.length(), 0);
+		}
+
+		// 为每个连接套接字创建一个线程来处理消息
+		thread acceptThread(handleAccept, user_id, acceptSocket);
+		acceptThread.detach();// 分离线程，让它自己运行
 	}
 
 	closesocket(socketServer);// 关闭服务器

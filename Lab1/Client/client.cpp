@@ -32,7 +32,8 @@ void handleServer(SOCKET serverSocket, int clientId) {
         SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 
         // 输出接收到的消息
-        cout << recvBuff << endl;
+        string message = recvBuff;
+        cout << message << endl;
 
         context_start_line++;
 
@@ -80,10 +81,8 @@ int main() {
     cout << "===============================================" << endl;
 
     // 接收并保存clientId
-    char clientIdBuff[BUF_SIZE];
-    ZeroMemory(clientIdBuff, BUF_SIZE);
-    recv(socketClient, clientIdBuff, BUF_SIZE, 0);
-    int clientId = atoi(strchr(clientIdBuff, ':') + 1); // 解析clientId
+    int clientId;
+    recv(socketClient, (char*)&clientId, sizeof(clientId), 0);
 
     // 创建线程来接收服务器消息
     thread recvThread(handleServer, socketClient, clientId);

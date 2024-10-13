@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "D:\\Mycode\\VS_Code\\Computer_Network\\Lab1\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{2A09A436-5167-422E-9E0D-BDF3E9563C42}|Client\\Client.vcxproj|D:\\Mycode\\VS_Code\\Computer_Network\\Lab1\\Client\\client.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{2A09A436-5167-422E-9E0D-BDF3E9563C42}|Client\\Client.vcxproj|solutionrelative:Client\\client.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{FD11C313-D732-46B9-9741-5A38BA0941D0}|Server\\Server.vcxproj|D:\\Mycode\\VS_Code\\Computer_Network\\Lab1\\Server\\server.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
       "RelativeMoniker": "D:0:0:{FD11C313-D732-46B9-9741-5A38BA0941D0}|Server\\Server.vcxproj|solutionrelative:Server\\server.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2A09A436-5167-422E-9E0D-BDF3E9563C42}|Client\\Client.vcxproj|D:\\Mycode\\VS_Code\\Computer_Network\\Lab1\\Client\\client.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{2A09A436-5167-422E-9E0D-BDF3E9563C42}|Client\\Client.vcxproj|solutionrelative:Client\\client.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     }
   ],
   "DocumentGroupContainers": [
@@ -18,32 +18,33 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 1,
+          "SelectedChildIndex": 0,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "server.cpp",
               "DocumentMoniker": "D:\\Mycode\\VS_Code\\Computer_Network\\Lab1\\Server\\server.cpp",
               "RelativeDocumentMoniker": "Server\\server.cpp",
               "ToolTip": "D:\\Mycode\\VS_Code\\Computer_Network\\Lab1\\Server\\server.cpp",
               "RelativeToolTip": "Server\\server.cpp",
-              "ViewState": "AQIAAFMAAAAAAAAAAAAQwHoAAAAAAAAA",
+              "ViewState": "AQIAAGAAAAAAAAAAAAAAAIUAAAAUAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2024-10-11T15:27:57.887Z",
-              "IsPinned": true
+              "IsPinned": true,
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "client.cpp",
               "DocumentMoniker": "D:\\Mycode\\VS_Code\\Computer_Network\\Lab1\\Client\\client.cpp",
               "RelativeDocumentMoniker": "Client\\client.cpp",
               "ToolTip": "D:\\Mycode\\VS_Code\\Computer_Network\\Lab1\\Client\\client.cpp",
               "RelativeToolTip": "Client\\client.cpp",
-              "ViewState": "AQIAAAAAAAAAAAAAAAAAAEYAAAAhAAAA",
+              "ViewState": "AQIAAAMAAAAAAAAAAAAAACIAAAAWAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2024-10-11T16:48:35.274Z",
+              "WhenOpened": "2024-10-13T03:40:07.406Z",
               "EditorCaption": ""
             }
           ]
