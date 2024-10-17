@@ -1,4 +1,4 @@
 ﻿  client.cpp
-D:\Mycode\VS_Code\Computer_Network\Lab1\Client\client.cpp(38,41): warning C4267: “=”: 从“size_t”转换到“SHORT”，可能丢失数据
-D:\Mycode\VS_Code\Computer_Network\Lab1\Client\client.cpp(114,48): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
+D:\Mycode\VS_Code\Computer_Network\Lab1\Client\client.cpp(40,41): warning C4267: “=”: 从“size_t”转换到“SHORT”，可能丢失数据
+D:\Mycode\VS_Code\Computer_Network\Lab1\Client\client.cpp(117,48): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
   Client.vcxproj -> D:\Mycode\VS_Code\Computer_Network\Lab1\x64\Debug\Client.exe

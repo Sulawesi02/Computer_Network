@@ -24,6 +24,8 @@ void handleServer(int clientId, SOCKET socketClient) {
         int recvBytes = recv(socketClient, recvBuff, BUF_SIZE, 0);
         if (recvBytes <= 0) {
             cout << "与服务器断开连接" << endl;
+            closesocket(socketClient);// 关闭客户端socket
+            WSACleanup();// 释放socket库资源
             break;
         }
 
@@ -58,6 +60,7 @@ void handleServer(int clientId, SOCKET socketClient) {
         // 重新绘制用户输入
         cout << "用户[" << clientId << "]: " << userInput;
     }
+    exit(0);  // 服务器断开后直接退出程序
 }
 
 int main() {
