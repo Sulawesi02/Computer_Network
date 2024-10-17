@@ -17,9 +17,19 @@ map<int, SOCKET> accepts; // 用户ID作为键，连接套接字作为键值
 int user_id; // 用户ID
 bool isFull = false; // 是否已达连接上限
 
-// 处理客户端通信（接收客户端消息并处理）
+// 接收并处理客户端消息的线程处理函数
 void handleAccept(int clientId, SOCKET acceptSocket) {
 	char recvBuff[BUF_SIZE];// 接收缓冲区
+
+	// 发送用户ID给客户端
+	send(acceptSocket, (char*)&user_id, sizeof(user_id), 0);
+
+	string enterMessage = "用户[" + to_string(user_id) + "]加入聊天！";
+	cout << enterMessage << endl;
+	// 广播进入消息给所有客户端
+	for (const auto& pair : accepts) {
+		send(pair.second, enterMessage.c_str(), enterMessage.length(), 0);
+	}
 
 	while (true) {
 		ZeroMemory(recvBuff, BUF_SIZE);// 清空缓冲区，避免读取到残留数据
@@ -29,10 +39,10 @@ void handleAccept(int clientId, SOCKET acceptSocket) {
 
 		if (recvBytes <= 0 || message == "exit" || message == "quit") {
 			// 客户端请求退出
-			// 三种方式：直接关闭窗口，或者发送"exit" "quit"
+			// 三种方式：直接关闭窗口，发送“exit”或“quit”消息
 			string exitMessage = "用户[" + to_string(clientId) + "]退出聊天！";
 			cout << exitMessage << endl;// 打印用户退出聊天信息
-			closesocket(acceptSocket);// 关闭该连接套接字
+			closesocket(acceptSocket);// 关闭该连接套接字socket
 			accepts.erase(clientId);// 移除用户ID-连接套接字键值对
 
 			// 广播退出消息给其他客户端
@@ -45,7 +55,7 @@ void handleAccept(int clientId, SOCKET acceptSocket) {
 		else {
 			string chatMessage = "用户[" + to_string(clientId) + "]: " + message;
 			cout << chatMessage << endl;// 打印用户聊天信息
-			// 广播消息给所有客户端
+			// 广播聊天消息给所有客户端
 			for (const auto& pair : accepts) {
 				if (pair.first != clientId) {
 					send(pair.second, chatMessage.c_str(), chatMessage.length(), 0);
@@ -131,22 +141,12 @@ int main() {
 		// 分配用户ID，并记录连接套接字
 		accepts[user_id] = acceptSocket;
 
-		// 发送用户ID给客户端
-		send(acceptSocket, (char*)&user_id, sizeof(user_id), 0);
-
-		string enterMessage = "用户[" + to_string(user_id) + "]加入聊天！";
-		cout << enterMessage << endl;
-		// 广播进入消息给所有客户端
-		for (const auto& pair : accepts) {
-			send(pair.second, enterMessage.c_str(), enterMessage.length(), 0);
-		}
-
 		// 创建线程让服务器接收并处理消息
 		thread acceptThread(handleAccept, user_id, acceptSocket);
 		acceptThread.detach();// 分离线程，让它自己运行
 	}
 
-	closesocket(socketServer);// 关闭服务器
+	closesocket(socketServer);// 关闭服务器socket
 	WSACleanup();// 释放socket库资源
 	return 0;
 }

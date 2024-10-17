@@ -2,8 +2,8 @@
 D:\Mycode\VS_Code\Computer_Network\Lab1\Client\client.cpp(38,41): warning C4267: “=”: 从“size_t”转换到“SHORT”，可能丢失数据
 D:\Mycode\VS_Code\Computer_Network\Lab1\Client\client.cpp(114,48): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
   正在生成代码
-  32 of 170 functions (18.8%) were compiled, the rest were copied from previous compilation.
-    31 functions were new in current compilation
-    4 functions had inline decision re-evaluated but remain unchanged
+  1 of 170 functions ( 0.6%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    0 functions had inline decision re-evaluated but remain unchanged
   已完成代码的生成
   Client.vcxproj -> D:\Mycode\VS_Code\Computer_Network\Lab1\x64\Release\Client.exe

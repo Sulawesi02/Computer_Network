@@ -14,7 +14,7 @@ using namespace std;
 
 string userInput; // 保存当前用户输入但还未发送的内容
 
-// 处理服务器通信（接收服务器消息并处理）
+// 接收并处理服务器消息的线程处理函数
 void handleServer(int clientId, SOCKET socketClient) {
     char recvBuff[BUF_SIZE];// 接收缓冲区
 
@@ -84,7 +84,7 @@ int main() {
     cout << "创建客户端socket成功！" << endl;
     cout << "-----------------------------------------------" << endl;
 
-    // 向服务器的socket发起连接请求
+    // 向服务器socket发起连接请求
     serverAddr.sin_family = AF_INET; // IPv4地址族
     inet_pton(AF_INET, "127.0.0.1", &serverAddr.sin_addr.s_addr);
     serverAddr.sin_port = htons(PORT); // 服务器的监听端口号
@@ -105,7 +105,7 @@ int main() {
     thread recvThread(handleServer, clientId, socketClient);
     recvThread.detach();
 
-    // 处理客户端发送消息
+    // 发送消息到服务器
     while (true) {
         ZeroMemory(sendBuff, BUF_SIZE);// 清空缓冲区，避免读取到残留数据
         cout << "用户[" << clientId << "]: ";
@@ -122,8 +122,7 @@ int main() {
         }
     }
 
-    // 关闭客户端
-    closesocket(socketClient);
-    WSACleanup();
+    closesocket(socketClient);// 关闭客户端socket
+    WSACleanup();// 释放socket库资源
     return 0;
 }
