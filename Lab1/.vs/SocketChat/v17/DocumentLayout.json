@@ -28,7 +28,7 @@
               "RelativeDocumentMoniker": "Server\\server.cpp",
               "ToolTip": "D:\\Mycode\\VS_Code\\Computer_Network\\Lab1\\Server\\server.cpp",
               "RelativeToolTip": "Server\\server.cpp",
-              "ViewState": "AQIAAAAAAAAAAAAAAAAAADkAAAAhAAAA",
+              "ViewState": "AQIAABUAAAAAAAAAAAAAADkAAAAhAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2024-10-11T15:27:57.887Z",
               "IsPinned": true,
@@ -44,8 +44,7 @@
               "RelativeToolTip": "Client\\client.cpp",
               "ViewState": "AQIAABgAAAAAAAAAAAAAADQAAAAoAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2024-10-13T03:40:07.406Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-10-13T03:40:07.406Z"
             }
           ]
         }
