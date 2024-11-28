@@ -19,9 +19,6 @@ SOCKET socketServer;
 int len = sizeof(SOCKADDR);
 const int RTO = 2 * CLOCKS_PER_SEC;//超时重传时间
 bool quit = false;
-char filepath[20];
-ofstream out;
-int messagenum;
 
 class Message {
 public:
@@ -52,11 +49,11 @@ public:
 
     void setFIN() { this->flag |= 4; }
 
-    void setFIR() { this->flag |= 8; }
+    void setSTART() { this->flag |= 8; }
 
     void setEND() { this->flag |= 16; }
 
-    int setChecksum() {
+    void setChecksum() {
         int sum = 0;
         u_char* temp = (u_char*)this;
         for (int i = 0; i < 8; i++) {
@@ -68,7 +65,6 @@ public:
             }
         }
         this->checksum = ~(u_short)sum;  // 按位取反，方便校验计算
-        return this->checksum;
     }
 
     bool packetCorruption() {
@@ -90,7 +86,6 @@ public:
 };
 
 bool waitConnect() {
-
     Message sendMsg, recvMsg;
     clock_t start;
 
@@ -208,12 +203,14 @@ bool closeConnect(Message recvMsg) {
 }
 
 void recv_file() {
-
     cout << "服务器正在等待接收文件中......" << endl;
     Message recvMsg, sendMsg;
     clock_t start, end;
+    char filePath[20];
     string outputPath;
-    int checksum;
+    ofstream out;
+    int dataAmount = 0;
+    int packetNum;
 
     // 接收文件名
     while (1) {
@@ -227,19 +224,20 @@ void recv_file() {
                 return;
             }
             if (recvMsg.isSTART() && !recvMsg.packetCorruption()) {
-                ZeroMemory(filepath, 20);
-                memcpy(filepath, recvMsg.data, recvMsg.len);
-                outputPath = "./output/" + string(filepath);
-                out.open(outputPath, ios::out | ios::binary);
-                cout << "文件名为：" << filepath << endl;
-                cout << "报文无差错!" << endl;
+                ZeroMemory(filePath, 20);
+                memcpy(filePath, recvMsg.data, recvMsg.len);
+                outputPath = "./output/" + string(filePath);
+                out.open(outputPath, ios::out | ios::binary);//以写入模式、二进制模式打开文件
+                cout << "文件名为：" << filePath << endl;
+                cout << "checksum：" << recvMsg.checksum << endl << endl;
+
                 if (!out.is_open()) {
                     cout << "文件打开失败！！！" << endl;
                     exit(1);
                 }
 
-                messagenum = recvMsg.num;
-                cout << "文件" << filepath << "有" << messagenum << "个数据包" << endl;
+                packetNum = recvMsg.num;
+                cout << "文件" << filePath << "有" << packetNum << "个数据包" << endl;
 
                 // 发送ack给客户端
                 sendMsg.setACK();
@@ -263,19 +261,18 @@ void recv_file() {
     cout << "服务器端开始接收文件内容！" << endl;
     int expectedSeq = 1;
     start = clock();
-    for (int i = 0; i < messagenum; i++) {
+    for (int i = 0; i < packetNum; i++) {
         while (1) {
             if (recvfrom(socketServer, (char*)&recvMsg, BUFFER, 0, (SOCKADDR*)&clientAddr, &len) != SOCKET_ERROR) {
                 // 检查序列号是否正确
                 if (recvMsg.seq == expectedSeq && !recvMsg.packetCorruption()) {
-                    // 以追加模式打开文件，并写入文件
-                    ofstream out(outputPath, ios::app | std::ios::binary);
-                    out.write(recvMsg.data, recvMsg.len);
+                    out.write(recvMsg.data, recvMsg.len);// 写入数据到文件
+                    dataAmount += recvMsg.len;
                     out.close();
 
                     // 发送ack给客户端
                     cout << "收到seq为" << recvMsg.seq << "的数据包" << endl;
-                    cout << "报文无差错!" << endl << endl;
+                    cout << "checksum：" << recvMsg.checksum << endl << endl;
                     sendMsg.setACK();
                     sendMsg.ack = recvMsg.seq;
                     sendMsg.setChecksum();
@@ -296,7 +293,7 @@ void recv_file() {
 
                     double TotalTime = (double)(end - start) / CLOCKS_PER_SEC;
                     cout << "传输总时间" << TotalTime << "s" << endl;
-                    cout << "吞吐率" << (double)(messagenum) * sizeof(Message) * 8 / TotalTime / 1024 << "kbps" << endl << endl;
+                    cout << "吞吐率" << (double)dataAmount / TotalTime << " bytes/s" << endl << endl;
 
                     return;
                 }

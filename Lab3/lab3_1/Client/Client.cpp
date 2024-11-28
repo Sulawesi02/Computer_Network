@@ -19,10 +19,6 @@ SOCKET socketClient;
 int len = sizeof(SOCKADDR);
 const int RTO = 2 * CLOCKS_PER_SEC;//超时重传时间
 bool quit = false;
-int messagenum;
-char filepath[20];
-int filelen;
-ifstream in;
 
 class Message {
 public:
@@ -53,11 +49,11 @@ public:
 
     void setFIN() { this->flag |= 4; }
 
-    void setFIR() { this->flag |= 8; }
+    void setSTART() { this->flag |= 8; }
 
     void setEND() { this->flag |= 16; }
 
-    int setChecksum() {
+    void setChecksum() {
         int sum = 0;
         u_char* temp = (u_char*)this;
         for (int i = 0; i < 8; i++) {
@@ -69,7 +65,6 @@ public:
             }
         }
         this->checksum = ~(u_short)sum;  // 按位取反，方便校验计算
-        return this->checksum;
     }
 
     bool packetCorruption() {
@@ -219,10 +214,15 @@ bool closeConnect() {
 void send_file() {
     Message sendMsg, recvMsg;
     clock_t start, end;
-    int count = 0;
+    char filePath[20];
+    ifstream in;
+    int filePtrLoc;
+    int dataAmount;
+    int packetNum;
+    int checksum;
 
     cout << "请输入要发送的文件名：";
-    memset(filepath, 0, 20);
+    memset(filePath, 0, 20);
     string temp;
     cin >> temp;
     string inputPath = "./input/" + temp;
@@ -233,28 +233,29 @@ void send_file() {
         return;
     }
     else if (temp == "1.jpg" || temp == "2.jpg" || temp == "3.jpg" || temp == "helloworld.txt") {
-        strcpy_s(filepath, sizeof(filepath), temp.c_str());
-        in.open(inputPath, ifstream::in | ios::binary);// 以二进制方式打开文件
-        in.seekg(0, ios_base::end);// 将文件流指针定位到流的末尾
-        filelen = in.tellg();
-        messagenum = filelen / 1024 + 1;
-        in.seekg(0, ios_base::beg);// 将文件流指针定位到流的开始
-        cout << "文件" << temp << "有" << messagenum << "个数据包" << endl;
+        strcpy_s(filePath, sizeof(filePath), temp.c_str());
+        in.open(inputPath, ifstream::in | ios::binary);// 以读取模式、二进制方式打开文件
+        in.seekg(0, ios_base::end);// 将文件流指针移动到文件的末尾
+        dataAmount = in.tellg();//文件大小（以字节为单位） 
+        filePtrLoc = dataAmount;
+        packetNum = filePtrLoc / 1024 + 1;//数据包数量
+        in.seekg(0, ios_base::beg);// 将文件流指针移回文件的开头
+        cout << "文件" << temp << "有" << packetNum << "个数据包" << endl;
     }
     else {
         cout << "文件不存在，请重新输入您要传输的文件名！" << endl;
         return;
     }
 
-    // 发送文件名
+    // 发送第一个包，内容是文件名
     cout << "客户端发送文件名" << endl;
-    memcpy(sendMsg.data, filepath, strlen(filepath));
-    sendMsg.setFIR();
+    memcpy(sendMsg.data, filePath, strlen(filePath));
+    sendMsg.setSTART();
     sendMsg.seq = 0;
-    sendMsg.len = strlen(filepath);
-    sendMsg.num = messagenum;
-    int checksum = sendMsg.setChecksum();
-    cout << "checksum：" << checksum << endl;
+    sendMsg.len = strlen(filePath);
+    sendMsg.num = packetNum;
+    sendMsg.setChecksum();
+    cout << "checksum：" << sendMsg.checksum << endl;
     if (sendto(socketClient, (char*)&sendMsg, BUFFER, 0, (SOCKADDR*)&serverAddr, sizeof(SOCKADDR)) == SOCKET_ERROR) {
         cout << "客户端发送文件名失败!" << endl;
         return;
@@ -270,8 +271,8 @@ void send_file() {
         }
         if (clock() - start > RTO) {
             cout << "应答超时，客户端重新发送文件名" << endl;
-            checksum = sendMsg.setChecksum();
-            cout << "checksum：" << checksum << endl;
+            sendMsg.setChecksum();
+            cout << "checksum：" << sendMsg.checksum << endl << endl;
             if (sendto(socketClient, (char*)&sendMsg, BUFFER, 0, (SOCKADDR*)&serverAddr, sizeof(SOCKADDR)) == SOCKET_ERROR) {
                 cout << "客户端发送文件名失败!" << endl;
                 cout << "当前网络状态不佳，请稍后再试" << endl;
@@ -285,25 +286,25 @@ void send_file() {
     cout << "客户端开始发送文件内容！" << endl;
     int seq = 1;
     start = clock();
-    while (filelen) {
-        if (filelen > 1024) {
-            in.read(sendMsg.data, 1024);
+    for (int i = 0; i < packetNum; i++) {
+        if (i == packetNum - 1) {
+            in.read(sendMsg.data, filePtrLoc);
             sendMsg.seq = seq;
-            sendMsg.len = 1024;
-            filelen -= 1024;
+            sendMsg.len = filePtrLoc;
+            sendMsg.setEND(); // 文件结束标志
+            filePtrLoc = 0;
         }
         else {
-            in.read(sendMsg.data, filelen);
+            in.read(sendMsg.data, 1024);// 读取文件数据
             sendMsg.seq = seq;
-            sendMsg.len = filelen;
-            sendMsg.setEND(); // 文件结束标志
-            filelen = 0;
+            sendMsg.len = 1024;
+            filePtrLoc -= 1024;
         }
 
         // 发送数据包
         sendMsg.seq = seq;
-        checksum = sendMsg.setChecksum();
-        cout << "checksum：" << checksum << endl << endl;
+        sendMsg.setChecksum();
+        cout << "checksum：" << sendMsg.checksum << endl << endl;
         cout << "发送seq为" << seq << "的数据包" << endl;
         if (sendto(socketClient, (char*)&sendMsg, BUFFER, 0, (SOCKADDR*)&serverAddr, sizeof(SOCKADDR)) == SOCKET_ERROR) {
             cout << "发送数据包失败!" << endl;
@@ -312,6 +313,7 @@ void send_file() {
         // 设置套接字为非阻塞模式
         int mode = 1;
         ioctlsocket(socketClient, FIONBIO, (u_long FAR*) & mode);
+        int count = 0;
 
         clock_t c = clock();
         while (1) {
@@ -347,7 +349,7 @@ void send_file() {
 
     double TotalTime = (double)(end - start) / CLOCKS_PER_SEC;
     cout << "传输总时间: " << TotalTime << "s" << endl;
-    cout << "吞吐率: " << (double)(messagenum) * sizeof(Message) * 8 / TotalTime / 1024 << " kbps" << endl << endl;
+    cout << "吞吐率: " << (double)dataAmount / TotalTime << " bytes/s" << endl << endl;
 
     // 关闭文件并准备发送下一个文件
     in.close();
