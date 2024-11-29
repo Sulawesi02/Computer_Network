@@ -54,34 +54,61 @@ public:
     void setEND() { this->flag |= 16; }
 
     void setChecksum() {
-        int sum = 0;
-        u_char* temp = (u_char*)this;
-        for (int i = 0; i < 8; i++) {
-            sum += (temp[i << 1] << 8) + temp[i << 1 | 1];
-            while (sum >= 0x10000) {
-                // 溢出
-                int t = sum >> 16;  // 将最高位回滚添加至最低位
-                sum += t;
-            }
-        }
-        this->checksum = ~(u_short)sum;  // 按位取反，方便校验计算
-    }
+        // 清0校验和字段
+        this->checksum = 0;
 
-    bool packetCorruption() {
+        // 计算数据长度并填充
+        int dataLen = this->len;
+        int paddingLen = (16 - (dataLen % 16)) % 16;
+
+        // 使用动态内存分配
+        char* paddedData = new char[dataLen + paddingLen];
+        memcpy(paddedData, this->data, dataLen);
+        memset(paddedData + dataLen, 0, paddingLen);
+
+        // 进行16 - bit段反码求和
+        u_short* buffer = (u_short*)this;
         int sum = 0;
-        u_char* temp = (u_char*)this;
-        for (int i = 0; i < 8; i++) {
-            sum += (temp[i << 1] << 8) + temp[i << 1 | 1];
-            while (sum >= 0x10000) {
-                // 溢出
-                int t = sum >> 16; // 计算方法与设置校验和相同
-                sum += t;
+        for (int i = 0; i < (sizeof(Message) + paddingLen) / 2; i++) {
+            sum += buffer[i];
+            if (sum > 0xFFFF) {
+                sum = (sum & 0xFFFF) + (sum >> 16);
             }
         }
-        // 把计算出来的校验和和报文中该字段的值相加，如果等于0xffff，则校验成功
-        if (checksum + (u_short)sum == 65535)
-            return false;
-        return true;
+
+        // 计算结果取反写入校验和字段
+        this->checksum = ~sum;
+
+        // 释放动态分配的内存
+        delete[] paddedData;
+    }
+    bool packetCorruption() {
+        // 计算数据长度并填充
+        int dataLen = this->len;
+        int paddingLen = (16 - (dataLen % 16)) % 16;
+
+        // 使用动态内存分配
+        char* paddedData = new char[dataLen + paddingLen];
+        memcpy(paddedData, this->data, dataLen);
+        memset(paddedData + dataLen, 0, paddingLen);
+
+        // 进行16 - bit段反码求和
+        u_short* buffer = (u_short*)this;
+        int sum = 0;
+        for (int i = 0; i < (sizeof(Message) + paddingLen) / 2; i++) {
+            sum += buffer[i];
+            if (sum > 0xFFFF) {
+                sum = (sum & 0xFFFF) + (sum >> 16);
+            }
+        }
+
+        // 如果计算结果为全为1则无差错；否则，有差错
+        bool result = sum != 0xFFFF;
+
+        // 释放动态分配的内存
+        delete[] paddedData;
+
+        return result;
     }
 };
 
@@ -271,7 +298,6 @@ void send_file() {
         }
         if (clock() - start > RTO) {
             cout << "应答超时，客户端重新发送文件名" << endl;
-            sendMsg.setChecksum();
             cout << "checksum：" << sendMsg.checksum << endl << endl;
             if (sendto(socketClient, (char*)&sendMsg, BUFFER, 0, (SOCKADDR*)&serverAddr, sizeof(SOCKADDR)) == SOCKET_ERROR) {
                 cout << "客户端发送文件名失败!" << endl;
@@ -304,8 +330,9 @@ void send_file() {
         // 发送数据包
         sendMsg.seq = seq;
         sendMsg.setChecksum();
+        cout << "seq:" << seq << endl;
+        cout << "len:" << sendMsg.len << endl;;
         cout << "checksum：" << sendMsg.checksum << endl << endl;
-        cout << "发送seq为" << seq << "的数据包" << endl;
         if (sendto(socketClient, (char*)&sendMsg, BUFFER, 0, (SOCKADDR*)&serverAddr, sizeof(SOCKADDR)) == SOCKET_ERROR) {
             cout << "发送数据包失败!" << endl;
         }
