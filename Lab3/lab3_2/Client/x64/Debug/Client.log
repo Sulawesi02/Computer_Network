@@ -1,6 +1,6 @@
 ﻿  Client.cpp
-D:\Mycode\Computer_Network_Code\Lab3\lab3_2\Client\Client.cpp(344,13): warning C4101: “start”: 未引用的局部变量
-D:\Mycode\Computer_Network_Code\Lab3\lab3_2\Client\Client.cpp(409,30): warning C4244: “=”: 从“std::streamoff”转换到“int”，可能丢失数据
-D:\Mycode\Computer_Network_Code\Lab3\lab3_2\Client\Client.cpp(425,25): warning C4267: “=”: 从“size_t”转换到“u_long”，可能丢失数据
-D:\Mycode\Computer_Network_Code\Lab3\lab3_2\Client\Client.cpp(392,9): warning C4101: “checksum”: 未引用的局部变量
+D:\Mycode\Computer_Network_Code\Lab3\lab3_2\Client\Client.cpp(342,13): warning C4101: “start”: 未引用的局部变量
+D:\Mycode\Computer_Network_Code\Lab3\lab3_2\Client\Client.cpp(408,30): warning C4244: “=”: 从“std::streamoff”转换到“int”，可能丢失数据
+D:\Mycode\Computer_Network_Code\Lab3\lab3_2\Client\Client.cpp(424,25): warning C4267: “=”: 从“size_t”转换到“u_long”，可能丢失数据
+D:\Mycode\Computer_Network_Code\Lab3\lab3_2\Client\Client.cpp(391,9): warning C4101: “checksum”: 未引用的局部变量
   Client.vcxproj -> D:\Mycode\Computer_Network_Code\Lab3\lab3_2\x64\Debug\Client.exe

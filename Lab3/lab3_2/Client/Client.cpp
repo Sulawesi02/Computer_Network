@@ -15,7 +15,7 @@ using namespace std;
 #define CLIENT_PORT 3411
 #define ROUTER_PORT 3412
 #define BUFFER sizeof(Message)
-#define TIMEOUT 200 //超时重传时间
+#define TIMEOUT 100 //超时重传时间
 #define MAX_RETURN_TIMES 5 //超时重传次数
 
 
@@ -27,7 +27,6 @@ const int cwnd = 5;
 int base = 1; // 窗口的起始序列号
 int next_seq = 1; // 下一个待发送的序列号
 clock_t send_time = 0;  // 报文发送起始时间
-int last_ack = 1; // 记录上一次接收到的ack
 mutex seq_mutex; // 序列号的互斥锁
 bool send_over = false; // 传输完毕
 
@@ -93,7 +92,7 @@ public:
         // 释放动态分配的内存
         delete[] paddedData;
     }
-    bool packetCorruption() {
+    bool packetIncorrection() {
         // 计算数据长度并填充
         int dataLen = this->len;
         int paddingLen = (16 - (dataLen % 16)) % 16;
@@ -146,7 +145,7 @@ bool waitConnect() {
     start = clock();
     while (1) {
         if (recvfrom(socketClient, (char*)&recvMsg, BUFFER, 0, (SOCKADDR*)&routerAddr, &len) != SOCKET_ERROR) {
-            if (recvMsg.isSYN() && recvMsg.isACK() && recvMsg.ack == sendMsg.seq + 1 && !recvMsg.packetCorruption()) {
+            if (recvMsg.isSYN() && recvMsg.isACK() && recvMsg.ack == sendMsg.seq + 1 && !recvMsg.packetIncorrection()) {
                 cout << "客户端接收到第二次握手消息！第二次握手成功!" << endl;
                 break;
             }
@@ -196,7 +195,7 @@ bool closeConnect() {
     start = clock();
     while (1) {
         if (recvfrom(socketClient, (char*)&recvMsg, BUFFER, 0, (SOCKADDR*)&routerAddr, &len) != SOCKET_ERROR) {
-            if (recvMsg.isACK() && recvMsg.ack == sendMsg.seq + 1 && !recvMsg.packetCorruption()) {
+            if (recvMsg.isACK() && recvMsg.ack == sendMsg.seq + 1 && !recvMsg.packetIncorrection()) {
                 cout << "客户端接收到第二次挥手消息！第二次挥手成功！" << endl;
                 break;
             }
@@ -216,7 +215,7 @@ bool closeConnect() {
     start = clock();
     while (1) {
         if (recvfrom(socketClient, (char*)&recvMsg, BUFFER, 0, (SOCKADDR*)&routerAddr, &len) != SOCKET_ERROR) {
-            if (recvMsg.isACK() && recvMsg.ack == sendMsg.seq + 1 && !recvMsg.packetCorruption()) {
+            if (recvMsg.isACK() && recvMsg.ack == sendMsg.seq + 1 && !recvMsg.packetIncorrection()) {
                 cout << "客户端接收到第三次挥手消息！第三次挥手成功！" << endl;
                 break;
             }
@@ -303,9 +302,9 @@ void send_thread(SOCKET socketClient, sockaddr_in& routerAddr, ifstream& in,int 
                 cout << "发送线程准备加锁" << endl;
                 unique_lock<mutex> lock(seq_mutex);// 加锁
                 cout << "发送线程加锁成功" << endl;
-
                 cout << "应答超时，重新发送未确认的数据包" << endl;
-                for (int i = last_ack; i < next_seq; i++) {
+
+                for (int i = base; i < next_seq; i++) {
                     in.seekg((i - 1) * 1024, ios::beg);// 重置文件指针到正确的位置
                     if (i == packetNum) {
                         in.read(sendMsg.data, filePtrLoc);
@@ -321,7 +320,6 @@ void send_thread(SOCKET socketClient, sockaddr_in& routerAddr, ifstream& in,int 
                     sendMsg.seq = i;
                     sendMsg.setChecksum();
                     cout << "发送seq:" << i << endl;
-                    cout << "last_ack: " << last_ack << endl;
                     cout << "base：" << base << endl;
                     cout << "next_seq：" << i << endl;
                     cout << "len:" << sendMsg.len << endl;
@@ -349,20 +347,21 @@ void recv_thread(SOCKET socketClient, int packetNum) {
             unique_lock<mutex> lock(seq_mutex);// 加锁
             cout << "接收线程加锁成功" << endl;
             {
-                if (recvMsg.isACK() && !recvMsg.packetCorruption()) {
+                if (recvMsg.isACK() && !recvMsg.packetIncorrection()) {
                     cout << "接收ack：" << recvMsg.ack << endl;
-                    cout << "last_ack：" << last_ack << endl;
                     cout << "base：" << base << endl;
 
-                    if (recvMsg.ack > last_ack && recvMsg.ack < base + cwnd) {
-                        last_ack = recvMsg.ack;
+                    if (recvMsg.ack <= base + cwnd) {
                         base = recvMsg.ack;
-                        if (last_ack != recvMsg.ack) {
+                        if (recvMsg.ack % cwnd == 1) {
+                            cout << "更新超时时间！" << endl;
                             send_time = clock();
+                        }
+                        else {
+                            cout << endl << "发生丢包，不更新超时时间！" << endl << endl;
                         }
                     }
                     // 展示窗口情况
-                    cout << "last_ack=接收ack=" << last_ack << endl;
                     cout << "base=接收ack=" << base << endl;
                     cout << "next_seq：" << next_seq << endl;
                     cout << "窗口内已发送但未收到ack的包：" << next_seq - base << endl;
@@ -438,7 +437,7 @@ void send_file() {
     start = clock();
     while (1) {
         if (recvfrom(socketClient, (char*)&recvMsg, BUFFER, 0, (SOCKADDR*)&routerAddr, &len) != SOCKET_ERROR) {
-            if (recvMsg.isACK() && recvMsg.ack == sendMsg.seq + 1 && !recvMsg.packetCorruption()) {
+            if (recvMsg.isACK() && recvMsg.ack == sendMsg.seq + 1 && !recvMsg.packetIncorrection()) {
                 cout << "客户端发送文件名成功!" << endl;
                 break;
             }
@@ -480,7 +479,6 @@ void send_file() {
     base = 1; // 窗口的起始序列号
     next_seq = 1; // 下一个待发送的序列号
     send_time = 0;  // 报文发送起始时间
-    last_ack = 1;// 记录上一次接收到的ack
     send_over = false; // 传输完毕
 }
 
