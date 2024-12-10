@@ -2,6 +2,7 @@
 #include <WinSock2.h>
 #include <ws2tcpip.h>
 #include <string>
+#include <map>
 #include <time.h>
 #include <fstream>
 #include <thread>
@@ -15,20 +16,8 @@ using namespace std;
 #define CLIENT_PORT 3411
 #define ROUTER_PORT 3412
 #define BUFFER sizeof(Message)
-#define TIMEOUT 100 //超时重传时间
+#define TIMEOUT 200 //超时重传时间
 #define MAX_RETURN_TIMES 5 //超时重传次数
-
-
-SOCKADDR_IN routerAddr, clientAddr;
-SOCKET socketClient;
-int len = sizeof(SOCKADDR);
-bool quit = false;
-const int cwnd = 5;
-int base = 1; // 窗口的起始序列号
-int next_seq = 1; // 下一个待发送的序列号
-clock_t send_time = 0;  // 报文发送起始时间
-mutex seq_mutex; // 序列号的互斥锁
-bool send_over = false; // 传输完毕
 
 class Message {
 public:
@@ -121,6 +110,18 @@ public:
         return result;
     }
 };
+
+SOCKADDR_IN routerAddr, clientAddr;
+SOCKET socketClient;
+int len = sizeof(SOCKADDR);
+bool quit = false;
+const int cwnd = 5; // 窗口大小
+int base = 1; // 窗口的起始序列号
+int next_seq = 1; // 下一个待发送的序列号
+mutex seq_mutex; // 序列号的互斥锁
+bool send_over = false; // 传输完毕
+map<int, Message> send_buffer; // 序列号及其报文的映射
+map<int, clock_t> send_times;  // 序列号及其发送时间的映射
 
 bool waitConnect() {
     Message sendMsg, recvMsg;
@@ -253,15 +254,10 @@ void send_thread(SOCKET socketClient, sockaddr_in& routerAddr, ifstream& in,int 
     int count = 0;
 
     // 窗口内发送数据
-    while (1) {
-        if (send_over) {
-            break;
-        }
-        if(next_seq <= packetNum && (next_seq - base) < cwnd){
-            {
-                cout << "发送线程准备加锁" << endl;
-                unique_lock<mutex> lock(seq_mutex);// 加锁
-                cout << "发送线程加锁成功" << endl;
+    while (!send_over) {
+        {
+            unique_lock<mutex> lock(seq_mutex);// 加锁
+            while (next_seq <= packetNum && (next_seq - base) < cwnd) {
                 if (next_seq == packetNum) {
                     in.read(sendMsg.data, filePtrLoc);
                     sendMsg.len = filePtrLoc;
@@ -287,51 +283,38 @@ void send_thread(SOCKET socketClient, sockaddr_in& routerAddr, ifstream& in,int 
                     cout << "发送数据包失败!" << endl;
                 }
 
-                if (base == next_seq) {
-                    send_time = clock();
-                }
+                // 记录发送时间
+                send_buffer[next_seq] = sendMsg;
+                send_times[next_seq] = clock();
+
                 next_seq++;
-                cout << "发送线程准备解锁" << endl;
             }
-            cout << "发送线程解锁成功" << endl;
-
+            lock.unlock(); // 解锁
         }
-        // 超时重传
-        if(clock() - send_time > TIMEOUT){
-            {
-                cout << "发送线程准备加锁" << endl;
-                unique_lock<mutex> lock(seq_mutex);// 加锁
-                cout << "发送线程加锁成功" << endl;
-                cout << "应答超时，重新发送未确认的数据包" << endl;
+        {
+            unique_lock<mutex> lock(seq_mutex);// 加锁
+            // 超时重传
+            for (auto it = send_buffer.begin(); it != send_buffer.end(); ) {
+                if (clock() - send_times[it->first] > TIMEOUT) {
+                    cout << "应答超时，重新发送已发送未确认的数据包" << endl;
 
-                for (int i = base; i < next_seq; i++) {
-                    in.seekg((i - 1) * 1024, ios::beg);// 重置文件指针到正确的位置
-                    if (i == packetNum) {
-                        in.read(sendMsg.data, filePtrLoc);
-                        sendMsg.len = filePtrLoc;
-                        sendMsg.setEND(); // 文件结束标志
-                    }
-                    else {
-                        in.read(sendMsg.data, 1024);// 读取文件数据
-                        sendMsg.len = 1024;
-                    }
-
-                    // 发送数据包
-                    sendMsg.seq = i;
-                    sendMsg.setChecksum();
-                    cout << "发送seq:" << i << endl;
+                    Message sendMsg = it->second;
+                    cout << "发送seq:" << it->first << endl;
                     cout << "base：" << base << endl;
-                    cout << "next_seq：" << i << endl;
+                    cout << "next_seq：" << next_seq << endl;
                     cout << "len:" << sendMsg.len << endl;
                     cout << "checksum：" << sendMsg.checksum << endl << endl;
+
+
                     if (sendto(socketClient, (char*)&sendMsg, BUFFER, 0, (SOCKADDR*)&routerAddr, sizeof(SOCKADDR)) == SOCKET_ERROR) {
-                        cout << "发送数据包失败!" << endl;
+                        cout << "重传数据包失败!" << endl;
                     }
-                    cout << "发送线程准备解锁" << endl;
+                    // 重置计时器
+                    send_times[it->first] = clock();
                 }
-                cout << "发送线程解锁成功" << endl;
-                send_time = clock();
+                it++;
             }
+            lock.unlock(); // 解锁
         }
     }
 }
@@ -341,41 +324,35 @@ void recv_thread(SOCKET socketClient, int packetNum) {
     Message recvMsg;
     clock_t start;
 
-    while (1) {
+    while (!send_over) {
         if (recvfrom(socketClient, (char*)&recvMsg, BUFFER, 0, (SOCKADDR*)&routerAddr, &len) != SOCKET_ERROR) {
-            cout << "接收线程准备加锁" << endl;
             unique_lock<mutex> lock(seq_mutex);// 加锁
-            cout << "接收线程加锁成功" << endl;
-            {
-                if (recvMsg.isACK() && !recvMsg.packetIncorrection()) {
-                    cout << "接收ack：" << recvMsg.ack << endl;
-                    cout << "base：" << base << endl;
+            if (recvMsg.isACK() && !recvMsg.packetIncorrection()) {
+                cout << "接收ack：" << recvMsg.ack << endl;
+                cout << "base：" << base << endl;
 
-                    if (recvMsg.ack <= base + cwnd) {
-                        base = recvMsg.ack;
-                        if (recvMsg.ack % cwnd == 1) {
-                            cout << "更新超时时间！" << endl;
-                            send_time = clock();
-                        }
-                        else {
-                            cout << endl << "发生丢包，不更新超时时间！" << endl << endl;
-                        }
-                    }
-                    // 展示窗口情况
-                    cout << "base=接收ack=" << base << endl;
-                    cout << "next_seq：" << next_seq << endl;
-                    cout << "窗口内已发送但未收到ack的包：" << next_seq - base << endl;
-                    cout << "窗口内未发送的包：" << cwnd - (next_seq - base) << endl << endl;
-                    // 如果所有文件传输结束
-                    if (recvMsg.ack == packetNum + 1) {
-                        cout << "文件传输完成！" << endl;
-                        send_over = true;
-                        break;
-                    }
+                // 移除已确认的数据包
+                auto it = send_buffer.begin();
+                while (it != send_buffer.end() && it->first < recvMsg.ack) {
+                    it = send_buffer.erase(it); // 使用 erase 的返回值更新迭代器
+                    send_times.erase(recvMsg.ack); // 同时移除计时器
                 }
-                cout << "接收线程准备解锁" << endl;
+
+                base = recvMsg.ack;
+
+
+                // 展示窗口情况
+                cout << "base=接收ack=" << base << endl;
+                cout << "next_seq：" << next_seq << endl;
+                cout << "窗口内已发送但未收到ack的包：" << next_seq - base << endl;
+                cout << "窗口内未发送的包：" << cwnd - (next_seq - base) << endl << endl;
+                // 如果所有文件传输结束
+                if (recvMsg.ack == packetNum + 1) {
+                    cout << "文件传输完成！" << endl;
+                    send_over = true;
+                }
             }
-            cout << "接收线程解锁成功" << endl;
+            lock.unlock(); // 解锁
         }
     }
 }
@@ -478,7 +455,6 @@ void send_file() {
 
     base = 1; // 窗口的起始序列号
     next_seq = 1; // 下一个待发送的序列号
-    send_time = 0;  // 报文发送起始时间
     send_over = false; // 传输完毕
 }
 

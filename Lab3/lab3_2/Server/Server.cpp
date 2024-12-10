@@ -4,6 +4,7 @@
 #include <string>
 #include <time.h>
 #include <fstream>
+#include <map>
 
 #pragma comment(lib,"ws2_32.lib")
 
@@ -14,12 +15,6 @@ using namespace std;
 #define ROUTER_PORT 3412
 #define BUFFER sizeof(Message)
 #define TIMEOUT 1000 //超时重传时间
-
-SOCKADDR_IN serverAddr, routerAddr;
-SOCKET socketServer;
-int len = sizeof(SOCKADDR);
-bool quit = false;
-const int cwnd = 5;
 
 class Message {
 public:
@@ -108,6 +103,13 @@ public:
         return result;
     }
 };
+
+SOCKADDR_IN serverAddr, routerAddr;
+SOCKET socketServer;
+int len = sizeof(SOCKADDR);
+bool quit = false;
+const int cwnd = 5; // 窗口大小
+map<int, Message> recv_buffer; // 序列号及其报文的映射
 
 bool waitConnect() {
     Message sendMsg, recvMsg;
@@ -287,24 +289,42 @@ void recv_file() {
     int expected_seq = 1;
     bool first_recv_incorrect_seq = true;
     start = clock();
-    for (int i = 0; i < packetNum; i++) {
-        while (1) {
-            if (recvfrom(socketServer, (char*)&recvMsg, BUFFER, 0, (SOCKADDR*)&routerAddr, &len) != SOCKET_ERROR) {
-                // 如果校验和错误
-                if (recvMsg.packetIncorrection()) {
-                    cout << "checksum错误！" << endl;
-                    cout << "checksum：" << recvMsg.checksum << endl;
-                    continue;
-                }
+    while (1) {
+        if (recvfrom(socketServer, (char*)&recvMsg, BUFFER, 0, (SOCKADDR*)&routerAddr, &len) != SOCKET_ERROR) {
+            // 如果校验和错误
+            if (recvMsg.packetIncorrection()) {
+                cout << "checksum错误！" << endl;
+                cout << "checksum：" << recvMsg.checksum << endl;
+                continue;
+            }
 
+            // 第一个if是为了处理超时重传的善后工作
+            // 例如客户端发送seq12345，seq3丢失
+            // 接收seq12，加入接收缓冲区
+            // 接收seq4，发送ack3给客户端，加入接收缓冲区
+            // 接收seq5，加入接收缓冲区
+            // 接收缓冲区:{seq1：pack1，seq2：pack2，seq4：pack4，seq5：pack5}
+            // seq3超时重传，重新发送已发送未确认的seq345
+            // 接收seq3，加入接收缓冲区
+            // 此时接收缓冲区已满，写入文件
+            // 更新expected_seq为seq6
+            // 接收seq4，小于seq6，丢弃
+            // 接收seq5，小于seq6，丢弃
+            if (recvMsg.seq < expected_seq) {// 去重
+                continue;
+            }
+            else {
+                // 如果接收到的是期望接收到的seq
+                if (recvMsg.seq == expected_seq) {
+                    first_recv_incorrect_seq = true;
+                    expected_seq++;
+                }
                 // 如果接收到的不是期望接收到的seq
-                if (recvMsg.seq != expected_seq) {
+                else{
                     if (first_recv_incorrect_seq) {
                         // 发送累计确认的ack给客户端
                         cout << "期望接收seq:" << expected_seq << endl;
-                        cout << "接收到错误seq:" << recvMsg.seq << endl;
-                        cout << "len:" << recvMsg.len << endl;
-                        cout << "checksum：" << recvMsg.checksum << endl << endl;
+
                         sendMsg.setACK();
                         sendMsg.ack = expected_seq;
                         sendMsg.setChecksum();
@@ -317,50 +337,66 @@ void recv_file() {
                     }
                     first_recv_incorrect_seq = false;
                 }
-                // 如果接收到的是期望接收到的seq
-                else {
-                    first_recv_incorrect_seq = true;
-                    // 以追加模式打开文件，并写入文件
-                    cout << "写入文件seq:" << recvMsg.seq << endl;
-                    ofstream out(outputPath, ios::app | std::ios::binary);
-                    out.write(recvMsg.data, recvMsg.len);// 写入数据到文件
-                    dataAmount += recvMsg.len;
-                    out.close();
-
-                    cout << "接收seq:" << recvMsg.seq << endl;
-                    cout << "len:" << recvMsg.len << endl;;
-                    cout << "checksum：" << recvMsg.checksum << endl << endl;
-                    if (expected_seq % cwnd == 0 || expected_seq == packetNum) {
-                        // 发送ack给客户端
-                        sendMsg.setACK();
-                        sendMsg.ack = recvMsg.seq + 1;
-                        sendMsg.setChecksum();
-                        cout << "发送ack:" << sendMsg.ack << endl << endl;
-                        if (sendto(socketServer, (char*)&sendMsg, BUFFER, 0, (SOCKADDR*)&routerAddr, sizeof(SOCKADDR)) == SOCKET_ERROR) {
-                            cout << "服务器端发送ack报文失败!" << endl ;
-                            cout << "当前网络状态不佳，请稍后再试" << endl;
-                            return;
-                        }
-
-                    }
-
-                    // 检查文件传输是否结束
-                    if (recvMsg.isEND() && !recvMsg.packetIncorrection()) {
-                        end = clock();
-                        cout << "接收文件成功！" << endl;
-                        out.close();
-                        out.clear();
-
-
-                        double TotalTime = (double)(end - start) / CLOCKS_PER_SEC;
-                        cout << "传输总时间" << TotalTime << "s" << endl;
-                        cout << "吞吐率" << (double)dataAmount / TotalTime << " bytes/s" << endl << endl;
-
-                        return;
-                    }
-                    expected_seq++;
-                }
+                // 存储接收到的数据包
+                recv_buffer[recvMsg.seq] = recvMsg;
+                cout << "接收seq:" << recvMsg.seq << endl;
+                cout << "len:" << recvMsg.len << endl;
+                cout << "checksum：" << recvMsg.checksum << endl << endl;
             }
+
+            // 判断接收缓冲区的seq是否按序排列且最后一个seq的标志位是isEND
+            bool isSeqInOrder = true;
+            int prevSeq = 0;
+            for (auto it = recv_buffer.begin(); it != recv_buffer.end(); ++it) {
+                if (prevSeq != 0 && it->first != prevSeq + 1) {
+                    isSeqInOrder = false;
+                    break;
+                }
+                prevSeq = it->first;
+            }
+
+            // 如果接收缓冲区满了或者接收到最后一组数据包
+            if (isSeqInOrder && (recv_buffer.size() >= cwnd || recv_buffer.rbegin()->first == packetNum)) {
+                cout << "接收缓冲区写入文件" << endl << endl;
+                // 以追加模式打开文件，并写入文件
+                ofstream out(outputPath, ios::app | std::ios::binary);
+                // 遍历接收缓冲区，按序列号从小到大顺序将数据包写入文件
+                for (auto it = recv_buffer.begin(); it != recv_buffer.end(); ++it) {
+                    const Message& bufferRecvMsg = it->second;
+                    out.write(bufferRecvMsg.data, bufferRecvMsg.len);// 写入数据到文件
+                    dataAmount += bufferRecvMsg.len;
+                }
+                out.close();
+
+                // 发送ack给客户端
+                sendMsg.setACK();
+                sendMsg.ack = recv_buffer.rbegin()->first + 1;
+                sendMsg.setChecksum();
+                cout << "发送ack:" << sendMsg.ack << endl << endl;
+                if (sendto(socketServer, (char*)&sendMsg, BUFFER, 0, (SOCKADDR*)&routerAddr, sizeof(SOCKADDR)) == SOCKET_ERROR) {
+                    cout << "服务器端发送ack报文失败!" << endl;
+                    cout << "当前网络状态不佳，请稍后再试" << endl;
+                    return;
+                }
+
+                // 检查文件传输是否结束
+                if (recv_buffer.rbegin()->first == packetNum) {
+                    end = clock();
+                    cout << "接收文件成功！" << endl;
+                    out.close();
+                    out.clear();
+
+                    double TotalTime = (double)(end - start) / CLOCKS_PER_SEC;
+                    cout << "传输总时间" << TotalTime << "s" << endl;
+                    cout << "吞吐率" << (double)dataAmount / TotalTime << " bytes/s" << endl << endl;
+
+                    return;
+                }
+                recv_buffer.clear(); // 清空接收缓冲区
+
+                expected_seq = sendMsg.ack;
+            }
+
         }
     }
 }
