@@ -16,7 +16,7 @@ using namespace std;
 #define CLIENT_PORT 3411
 #define ROUTER_PORT 3412
 #define BUFFER sizeof(Message)
-#define TIMEOUT 200 //超时重传时间
+#define TIMEOUT 100 //超时重传时间
 #define MAX_RETURN_TIMES 5 //超时重传次数
 
 class Message {
@@ -249,7 +249,7 @@ bool closeConnect() {
 
 
 // 发送线程
-void send_thread(SOCKET socketClient, sockaddr_in& routerAddr, ifstream& in,int filePtrLoc, int packetNum) {
+void send_thread(SOCKET socketClient, sockaddr_in& routerAddr, ifstream& in, int filePtrLoc, int packetNum) {
     Message sendMsg;
     int count = 0;
 
@@ -430,7 +430,7 @@ void send_file() {
             start = clock();
         }
     }
-    
+
     // 开始发送文件内容
     cout << "客户端开始发送文件内容！" << endl << endl;
     start = clock();

@@ -320,7 +320,7 @@ void recv_file() {
                     expected_seq++;
                 }
                 // 如果接收到的不是期望接收到的seq
-                else{
+                else {
                     if (first_recv_incorrect_seq) {
                         // 发送累计确认的ack给客户端
                         cout << "期望接收seq:" << expected_seq << endl;
