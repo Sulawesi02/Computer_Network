@@ -16,8 +16,7 @@ using namespace std;
 #define CLIENT_PORT 3411
 #define ROUTER_PORT 3412
 #define BUFFER sizeof(Message)
-#define TIMEOUT 100 //超时重传时间
-#define MAX_RETURN_TIMES 5 //超时重传次数
+#define TIMEOUT 1000 //超时重传时间
 
 class Message {
 public:
@@ -115,7 +114,7 @@ SOCKADDR_IN routerAddr, clientAddr;
 SOCKET socketClient;
 int len = sizeof(SOCKADDR);
 bool quit = false;
-const int cwnd = 5; // 窗口大小
+const int cwnd = 7; // 窗口大小
 int base = 1; // 窗口的起始序列号
 int next_seq = 1; // 下一个待发送的序列号
 mutex seq_mutex; // 序列号的互斥锁

@@ -296,25 +296,6 @@ void recv_file() {
                 continue;
             }
 
-            // 例如客户端发送seq8、9、10、11、12、13、14、15，其中seq9、14丢失
-            // 接收seq8，加入接收缓冲区，expected_seq=9
-            // 接收seq10，发送ack9给客户端，加入接收缓冲区
-            // 接收seq11，加入接收缓冲区
-            // 接收seq12，加入接收缓冲区
-            // 接收seq13，加入接收缓冲区
-            // 接收seq15，加入接收缓冲区
-            // 接收缓冲区:{seq8：pack8，seq10：pack10，seq11：pack11，seq12：pack12，seq13：pack13，seq15：pack15}
-            // seq9超时重传，重新发送已发送未确认的seq9、10、11、12、13、14、15
-            // 接收seq9，加入接收缓冲区，expected_seq=14
-            // 接收seq10，小于expected_seq，丢弃
-            // 接收seq11，小于expected_seq，丢弃
-            // 接收seq12，小于expected_seq，丢弃
-            // 接收seq13，小于expected_seq，丢弃
-            // 接收seq14，加入接收缓冲区，expected_seq=16
-            // 接收seq15，小于expected_seq，丢弃
-            // 此时接收缓冲区已满，写入文件
-            // 如果接收到的是期望收到的seq
-
             // 存储接收到的数据包
             recv_buffer[recvMsg.seq] = recvMsg;
             cout << "接收seq:" << recvMsg.seq << endl;

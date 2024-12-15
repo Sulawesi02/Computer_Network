@@ -16,7 +16,7 @@ using namespace std;
 #define CLIENT_PORT 3411
 #define ROUTER_PORT 3412
 #define BUFFER sizeof(Message)
-#define TIMEOUT 10000 //超时重传时间
+#define TIMEOUT 1000 //超时重传时间
 
 class Message {
 public:
@@ -260,7 +260,6 @@ void send_thread(SOCKET socketClient, sockaddr_in& routerAddr, ifstream& in,int 
         {
             unique_lock<mutex> lock(seq_mutex);// 加锁
             if (next_seq <= packetNum && (next_seq - base) < min(cwnd, rwnd)) {
-
                 if (next_seq == packetNum) {
                     in.read(sendMsg.data, filePtrLoc);
                     sendMsg.len = filePtrLoc;
@@ -342,16 +341,19 @@ void recv_thread(SOCKET socketClient, int packetNum) {
                     if (recvMsg.ack > prev_ack) { // 新的 ack
                         cout << "接收新的ack:" << recvMsg.ack << endl;
                         dup_ack_count = 0; // 重置冗余 ACK 计数
+
                         if (recvMsg.ack >= expected_ack) {
                             // 移除已确认的数据包
                             auto it = send_buffer.begin();
-                            while (it != send_buffer.end() && it->first < recvMsg.ack) {
+                            auto it_time = send_times.begin();
+                            while (it != send_buffer.end() && it->first < recvMsg.ack && it_time != send_times.end() && it_time->first < recvMsg.ack) {
                                 it = send_buffer.erase(it); // 从发送缓冲区中删去对应报文
-                                send_times.erase(recvMsg.ack); // 同时移除计时器
+                                it_time = send_times.erase(it_time); // 移除计时器
                             }
-                            base = recvMsg.ack;
 
+                            base = recvMsg.ack;
                             if (cwnd < ssthresh) {
+
                                 // 慢启动
                                 cout << "慢启动:" << endl;
                                 cwnd *= 2;
@@ -359,7 +361,7 @@ void recv_thread(SOCKET socketClient, int packetNum) {
                             else {
                                 // 拥塞避免
                                 cout << "拥塞避免:" << endl;
-                                cwnd += 1;
+                                cwnd++;
                             }
                             expected_ack += min(cwnd, rwnd);
                         }
@@ -376,8 +378,8 @@ void recv_thread(SOCKET socketClient, int packetNum) {
                     else if (recvMsg.ack == prev_ack) { //冗余 ack
                         if (dup_ack_count < 3) {
                             dup_ack_count++;
+                            cwnd++;
                             cout << "接收到第" << dup_ack_count << "个冗余ack:" << recvMsg.ack << endl;
-                            cwnd += 1;
                         }
                         if (dup_ack_count == 3) { // 收到第3个冗余 ACK
                             // 快重传
@@ -409,6 +411,8 @@ void recv_thread(SOCKET socketClient, int packetNum) {
                     if (recvMsg.ack == packetNum + 1) {
                         cout << "文件传输完成！" << endl;
                         send_over = true;
+                        send_buffer.clear();
+                        send_times.clear();
                     }
                 }
                 lock.unlock(); // 解锁

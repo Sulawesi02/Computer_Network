@@ -108,7 +108,7 @@ SOCKADDR_IN serverAddr, routerAddr;
 SOCKET socketServer;
 int len = sizeof(SOCKADDR);
 bool quit = false;
-const int cwnd = 5; // 窗口大小
+const int cwnd = 7; // 窗口大小
 map<int, Message> recv_buffer; // 序列号及其报文的映射
 
 bool waitConnect() {
@@ -389,6 +389,9 @@ void recv_file() {
                     double TotalTime = (double)(end - start) / CLOCKS_PER_SEC;
                     cout << "传输总时间" << TotalTime << "s" << endl;
                     cout << "吞吐率" << (double)dataAmount / TotalTime << " bytes/s" << endl << endl;
+
+                    expected_seq = 1;
+                    recv_buffer.clear(); // 清空接收缓冲区
 
                     return;
                 }
